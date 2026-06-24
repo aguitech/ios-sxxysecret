@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 // MARK: - Shared refs (used across models)
 // Backend uses MongoDB `_id`. All refs map that to `id`.
@@ -127,14 +128,14 @@ enum ProjectLite: Codable, Hashable {
 struct Project: Codable, Identifiable, Hashable {
     let id: String
     let title: String
-    let status: String
-    let progress: Int
+    let status: String           // activo, pausado, completado
+    let progress: Int            // 0-100
     let description: String?
     let budget: Double?
     let startDate: Date?
     let endDate: Date?
-    let owner: ProjectOwner?
-    let client: ClientRef?
+    let owner: ProjectOwner?     // can be String id or populated UserRef
+    let client: ClientRef?       // can be populated { _id, name, company, email, status }
     let members: [ProjectMember]?
     let createdAt: Date?
     let updatedAt: Date?
@@ -160,12 +161,59 @@ struct Project: Codable, Identifiable, Hashable {
         case "activo": return "green"
         case "completado": return "blue"
         case "pausado": return "orange"
-        case "cancelado": return "red"
         default: return "gray"
         }
     }
 
-    var statusLabel: String { status.capitalized }
+    var statusLabel: String {
+        switch status {
+        case "activo": return "Activo"
+        case "completado": return "Completado"
+        case "pausado": return "Pausado"
+        default: return status.capitalized
+        }
+    }
+}
+
+// MARK: - Project Member Roles
+enum ProjectMemberRole: String, CaseIterable, Codable, Identifiable {
+    case colaborador
+    case revisor
+    case observador
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .colaborador: return "Colaborador"
+        case .revisor: return "Revisor"
+        case .observador: return "Observador"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .colaborador: return "Puede editar tareas"
+        case .revisor: return "Puede ver y comentar"
+        case .observador: return "Solo ver"
+        }
+    }
+
+    var colorName: String {
+        switch self {
+        case .colaborador: return "blue"
+        case .revisor: return "purple"
+        case .observador: return "gray"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .colaborador: return Theme.info
+        case .revisor: return Theme.accent
+        case .observador: return Theme.textTertiary
+        }
+    }
 }
 
 // MARK: - Dashboard Stats

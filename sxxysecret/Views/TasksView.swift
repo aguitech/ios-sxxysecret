@@ -5,6 +5,7 @@ struct TasksView: View {
     @State private var isLoading = true
     @State private var error: String?
     @State private var filter: TaskFilter = .all
+    @State private var showCreate = false
 
     enum TaskFilter: String, CaseIterable, Identifiable {
         case all = "Todas"
@@ -37,7 +38,7 @@ struct TasksView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             ForEach(TaskFilter.allCases) { f in
-                                Chip(text: f.rawValue, isSelected: filter == f) {
+                                Chip(label: f.rawValue, isOn: filter == f) {
                                     filter = f
                                 }
                             }
@@ -64,7 +65,7 @@ struct TasksView: View {
                             LazyVStack(spacing: 10) {
                                 ForEach(filteredTasks) { task in
                                     NavigationLink {
-                                        TaskDetailView(task: task)
+                                        TaskDetailView(task: task) { Task { await load() } }
                                     } label: {
                                         TaskRow(task: task)
                                     }
@@ -83,6 +84,23 @@ struct TasksView: View {
             .toolbarBackground(Theme.bgPrimary, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showCreate = true
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(Theme.gold)
+                    }
+                }
+            }
+            .sheet(isPresented: $showCreate) {
+                TaskEditView(mode: .create) {
+                    showCreate = false
+                    Task { await load() }
+                }
+            }
         }
         .task { await load() }
     }
@@ -100,18 +118,18 @@ struct TasksView: View {
 }
 
 struct Chip: View {
-    let text: String
-    let isSelected: Bool
+    let label: String
+    let isOn: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Text(text)
+            Text(label)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(isSelected ? .black : Theme.textSecondary)
+                .foregroundStyle(isOn ? .black : Theme.textSecondary)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .background(isSelected ? Theme.gold : Theme.bgCard)
+                .background(isOn ? Theme.gold : Theme.bgCard)
                 .clipShape(Capsule())
         }
     }
@@ -206,6 +224,11 @@ struct TaskRow: View {
 // MARK: - Task Detail
 struct TaskDetailView: View {
     let task: ProjectTask
+    @Environment(\.dismiss) private var dismiss
+    @State private var showEdit = false
+    @State private var showDeleteConfirm = false
+    @State private var deleteError: String?
+    var onChange: () -> Void = {}
 
     var statusLabel: String {
         switch task.status {
@@ -332,6 +355,11 @@ struct TaskDetailView: View {
                         }
                     }
 
+                    if let err = deleteError {
+                        Text(err).font(.caption).foregroundStyle(Theme.error)
+                            .padding(.horizontal, 20)
+                    }
+
                     Spacer(minLength: 40)
                 }
             }
@@ -341,12 +369,49 @@ struct TaskDetailView: View {
         .toolbarBackground(Theme.bgPrimary, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button { showEdit = true } label: {
+                        Label("Editar", systemImage: "pencil")
+                    }
+                    Button(role: .destructive) { showDeleteConfirm = true } label: {
+                        Label("Eliminar", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle").foregroundStyle(Theme.gold)
+                }
+            }
+        }
+        .sheet(isPresented: $showEdit, onDismiss: { onChange() }) {
+            TaskEditView(mode: .edit(task)) { showEdit = false }
+        }
+        .confirmationDialog(
+            "¿Eliminar esta tarea?",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Eliminar", role: .destructive) { Task { await deleteTask() } }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text("Esta acción no se puede deshacer.")
+        }
     }
 
     private func formatBytes(_ b: Int) -> String {
         if b < 1024 { return "\(b) B" }
         if b < 1024 * 1024 { return "\(b / 1024) KB" }
         return "\(b / (1024*1024)) MB"
+    }
+
+    private func deleteTask() async {
+        do {
+            try await APIClient.shared.deleteTask(id: task.id)
+            onChange()
+            dismiss()
+        } catch {
+            deleteError = error.localizedDescription
+        }
     }
 }
 

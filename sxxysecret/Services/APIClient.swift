@@ -196,19 +196,194 @@ actor APIClient {
         try await request("GET", "/dashboard/projects/\(id)", type: ProjectDetail.self)
     }
 
-    // MARK: Clients
-    func listClients() async throws -> [Client] {
-        try await request("GET", "/clients", type: [Client].self)
+    // MARK: Clients (CRUD)
+    func listClients(q: String? = nil, status: String? = nil) async throws -> [Client] {
+        var path = "/clients"
+        var qs: [String] = []
+        if let q = q, !q.isEmpty { qs.append("q=\(q.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? q)") }
+        if let status = status, !status.isEmpty { qs.append("status=\(status)") }
+        if !qs.isEmpty { path += "?" + qs.joined(separator: "&") }
+        return try await request("GET", path, type: [Client].self)
     }
 
-    // MARK: Tasks
+    func createClient(name: String, company: String?, email: String?, phone: String?, notes: String?, status: String?) async throws -> Client {
+        var body: [String: Any] = ["name": name]
+        if let v = company, !v.isEmpty { body["company"] = v }
+        if let v = email, !v.isEmpty { body["email"] = v }
+        if let v = phone, !v.isEmpty { body["phone"] = v }
+        if let v = notes, !v.isEmpty { body["notes"] = v }
+        if let v = status, !v.isEmpty { body["status"] = v }
+        return try await request("POST", "/clients", body: body, type: Client.self)
+    }
+
+    func updateClient(id: String, name: String, company: String?, email: String?, phone: String?, notes: String?, status: String?) async throws -> Client {
+        var body: [String: Any] = ["name": name]
+        if let v = company { body["company"] = v }
+        if let v = email { body["email"] = v }
+        if let v = phone { body["phone"] = v }
+        if let v = notes { body["notes"] = v }
+        if let v = status { body["status"] = v }
+        return try await request("PUT", "/clients/\(id)", body: body, type: Client.self)
+    }
+
+    func deleteClient(id: String) async throws {
+        try await requestNoBody("DELETE", "/clients/\(id)")
+    }
+
+    // MARK: Tasks (CRUD)
     func listTasks() async throws -> [ProjectTask] {
         try await request("GET", "/tasks", type: [ProjectTask].self)
     }
 
-    // MARK: Users (admin)
-    func listUsers() async throws -> [User] {
-        try await request("GET", "/users", type: [User].self)
+    func createTask(title: String, description: String?, status: String, priority: String,
+                    projectId: String?, clientId: String?, assigneeId: String?, dueDate: Date?) async throws -> ProjectTask {
+        var body: [String: Any] = ["title": title, "status": status, "priority": priority]
+        if let v = description, !v.isEmpty { body["description"] = v }
+        if let v = projectId { body["project"] = v }
+        if let v = clientId { body["client"] = v }
+        if let v = assigneeId { body["assignee"] = v }
+        if let v = dueDate {
+            let f = ISO8601DateFormatter()
+            f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            body["dueDate"] = f.string(from: v)
+        }
+        return try await request("POST", "/tasks", body: body, type: ProjectTask.self)
+    }
+
+    func updateTask(id: String, title: String?, description: String?, status: String?,
+                    priority: String?, projectId: String?, assigneeId: String?, dueDate: Date?) async throws -> ProjectTask {
+        var body: [String: Any] = [:]
+        if let v = title { body["title"] = v }
+        if let v = description { body["description"] = v }
+        if let v = status { body["status"] = v }
+        if let v = priority { body["priority"] = v }
+        if let v = projectId { body["project"] = v.isEmpty ? NSNull() : v }
+        if let v = assigneeId { body["assignee"] = v.isEmpty ? NSNull() : v }
+        if let v = dueDate {
+            let f = ISO8601DateFormatter()
+            f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            body["dueDate"] = f.string(from: v)
+        }
+        return try await request("PUT", "/tasks/\(id)", body: body, type: ProjectTask.self)
+    }
+
+    func deleteTask(id: String) async throws {
+        try await requestNoBody("DELETE", "/tasks/\(id)")
+    }
+
+    // MARK: Projects (CRUD)
+    /// Project routes are mounted under /dashboard per server.js
+    func listProjects(q: String? = nil, status: String? = nil, clientId: String? = nil) async throws -> [Project] {
+        var path = "/dashboard/projects"
+        var qs: [String] = []
+        if let q = q, !q.isEmpty { qs.append("q=\(q.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? q)") }
+        if let status = status, !status.isEmpty { qs.append("status=\(status)") }
+        if let v = clientId, !v.isEmpty { qs.append("client=\(v)") }
+        if !qs.isEmpty { path += "?" + qs.joined(separator: "&") }
+        return try await request("GET", path, type: [Project].self)
+    }
+
+    func getProject(id: String) async throws -> Project {
+        try await request("GET", "/dashboard/projects/\(id)", type: Project.self)
+    }
+
+    func getProjectDetail(id: String) async throws -> ProjectDetail {
+        try await request("GET", "/dashboard/projects/\(id)/detail", type: ProjectDetail.self)
+    }
+
+    func createProject(title: String, description: String?, clientId: String, status: String,
+                       progress: Int, budget: Double?, startDate: Date?, endDate: Date?,
+                       memberEmails: [String: String] = [:]) async throws -> Project {
+        var body: [String: Any] = [
+            "title": title,
+            "clientId": clientId,
+            "status": status,
+            "progress": progress,
+        ]
+        if let v = description, !v.isEmpty { body["description"] = v }
+        if let v = budget { body["budget"] = v }
+        if let v = startDate {
+            let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            body["startDate"] = f.string(from: v)
+        }
+        if let v = endDate {
+            let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            body["endDate"] = f.string(from: v)
+        }
+        return try await request("POST", "/dashboard/projects", body: body, type: Project.self)
+    }
+
+    func updateProject(id: String, title: String?, description: String?, clientId: String?,
+                       status: String?, progress: Int?, budget: Double?,
+                       startDate: Date?, endDate: Date?) async throws -> Project {
+        var body: [String: Any] = [:]
+        if let v = title { body["title"] = v }
+        if let v = description { body["description"] = v }
+        if let v = clientId { body["clientId"] = v }
+        if let v = status { body["status"] = v }
+        if let v = progress { body["progress"] = v }
+        if let v = budget { body["budget"] = v }
+        if let v = startDate {
+            let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            body["startDate"] = f.string(from: v)
+        }
+        if let v = endDate {
+            let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            body["endDate"] = f.string(from: v)
+        }
+        return try await request("PUT", "/dashboard/projects/\(id)", body: body, type: Project.self)
+    }
+
+    func deleteProject(id: String) async throws {
+        try await requestNoBody("DELETE", "/dashboard/projects/\(id)")
+    }
+
+    /// Add a member to a project by their EMAIL (backend resolves user from email) + role.
+    func addProjectMember(projectId: String, email: String, role: String = "colaborador") async throws {
+        try await requestNoBody("POST", "/dashboard/projects/\(projectId)/members", body: ["email": email, "role": role])
+    }
+
+    func removeProjectMember(projectId: String, userId: String) async throws {
+        try await requestNoBody("DELETE", "/dashboard/projects/\(projectId)/members/\(userId)")
+    }
+
+    // MARK: Users (CRUD — admin)
+    func listUsers(q: String? = nil, role: String? = nil) async throws -> [User] {
+        var path = "/users"
+        var qs: [String] = []
+        if let q = q, !q.isEmpty { qs.append("q=\(q.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? q)") }
+        if let role = role, !role.isEmpty { qs.append("role=\(role)") }
+        if !qs.isEmpty { path += "?" + qs.joined(separator: "&") }
+        return try await request("GET", path, type: [User].self)
+    }
+
+    func getUser(id: String) async throws -> User {
+        try await request("GET", "/users/\(id)", type: User.self)
+    }
+
+    func createUser(name: String, email: String, password: String, role: String, phone: String?) async throws -> User {
+        var body: [String: Any] = [
+            "name": name,
+            "email": email,
+            "password": password,
+            "role": role,
+        ]
+        if let v = phone, !v.isEmpty { body["phone"] = v }
+        return try await request("POST", "/users", body: body, type: User.self)
+    }
+
+    func updateUser(id: String, name: String?, email: String?, role: String?, phone: String?, active: Bool?) async throws -> User {
+        var body: [String: Any] = [:]
+        if let v = name { body["name"] = v }
+        if let v = email { body["email"] = v }
+        if let v = role { body["role"] = v }
+        if let v = phone { body["phone"] = v }
+        if let v = active { body["active"] = v }
+        return try await request("PUT", "/users/\(id)", body: body, type: User.self)
+    }
+
+    func deleteUser(id: String) async throws {
+        try await requestNoBody("DELETE", "/users/\(id)")
     }
 
     // MARK: Chat

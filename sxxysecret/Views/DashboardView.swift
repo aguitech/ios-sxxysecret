@@ -64,7 +64,7 @@ struct DashboardView: View {
                             } else {
                                 ForEach(projects.prefix(5)) { project in
                                     NavigationLink {
-                                        ProjectDetailView(project: project)
+                                        ProjectDetailView(projectId: project.id)
                                     } label: {
                                         ProjectCard(project: project)
                                     }

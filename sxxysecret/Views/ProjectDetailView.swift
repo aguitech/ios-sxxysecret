@@ -1,65 +1,125 @@
 import SwiftUI
 
 struct ProjectDetailView: View {
-    let project: Project
+    let projectId: String
+    @State private var project: Project?
     @State private var detail: ProjectDetail?
     @State private var isLoading = true
     @State private var error: String?
+    @State private var showEdit = false
+    @State private var showDeleteConfirm = false
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ZStack {
             Theme.bgPrimary.ignoresSafeArea()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // Header
-                    header
-                        .padding(.horizontal, 20)
-                        .padding(.top, 8)
+            if let project = project {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        // Header
+                        header(project: project)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 8)
 
-                    // Stats grid
-                    if let detail = detail {
-                        statsGrid(detail: detail)
-                            .padding(.horizontal, 20)
+                        // Stats grid
+                        if let detail = detail {
+                            statsGrid(detail: detail)
+                                .padding(.horizontal, 20)
 
-                        membersSection(detail: detail)
-                            .padding(.horizontal, 20)
+                            membersSection(detail: detail)
+                                .padding(.horizontal, 20)
 
-                        tasksSection(detail: detail)
-                            .padding(.horizontal, 20)
+                            tasksSection(detail: detail)
+                                .padding(.horizontal, 20)
 
-                        commentsSection(detail: detail)
-                            .padding(.horizontal, 20)
-                    } else if isLoading {
-                        ProgressView().tint(Theme.gold)
-                            .frame(maxWidth: .infinity, minHeight: 200)
-                    } else if let err = error {
-                        Text(err)
-                            .font(.system(size: 13))
-                            .foregroundStyle(Theme.error)
-                            .padding(.horizontal, 20)
+                            commentsSection(detail: detail)
+                                .padding(.horizontal, 20)
+                        } else if isLoading {
+                            ProgressView().tint(Theme.gold)
+                                .frame(maxWidth: .infinity, minHeight: 200)
+                        } else if let err = error {
+                            Text(err)
+                                .font(.system(size: 13))
+                                .foregroundStyle(Theme.error)
+                                .padding(.horizontal, 20)
+                        }
+
+                        Spacer(minLength: 40)
                     }
-
-                    Spacer(minLength: 40)
                 }
+            } else if isLoading {
+                ProgressView().tint(Theme.gold)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let err = error {
+                Text(err).foregroundStyle(Theme.error).padding()
             }
         }
-        .navigationTitle("Detalle")
+        .navigationTitle(project?.title ?? "Detalle")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(Theme.bgPrimary, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
-        .task {
-            do {
-                self.detail = try await APIClient.shared.projectDetail(id: project.id)
-            } catch {
-                self.error = error.localizedDescription
+        .toolbar {
+            if project != nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button { showEdit = true } label: {
+                            Label("Editar", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) { showDeleteConfirm = true } label: {
+                            Label("Eliminar", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle").foregroundStyle(Theme.gold)
+                    }
+                }
             }
-            isLoading = false
+        }
+        .sheet(isPresented: $showEdit, onDismiss: { Task { await reload() } }) {
+            if let p = project {
+                ProjectEditView(mode: .edit(p)) {
+                    showEdit = false
+                }
+            }
+        }
+        .confirmationDialog(
+            "¿Eliminar este proyecto?",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Eliminar", role: .destructive) { Task { await deleteProject() } }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text("Esta acción no se puede deshacer.")
+        }
+        .task { await reload() }
+    }
+
+    private func reload() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            async let p = APIClient.shared.getProject(id: projectId)
+            async let d = APIClient.shared.getProjectDetail(id: projectId)
+            self.project = try await p
+            self.detail = try await d
+            self.error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func deleteProject() async {
+        do {
+            try await APIClient.shared.deleteProject(id: projectId)
+            dismiss()
+        } catch {
+            self.error = error.localizedDescription
         }
     }
 
     // MARK: - Header
-    private var header: some View {
+    private func header(project: Project) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {

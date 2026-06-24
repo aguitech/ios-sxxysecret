@@ -4,6 +4,18 @@ struct ClientsView: View {
     @State private var clients: [Client] = []
     @State private var isLoading = true
     @State private var error: String?
+    @State private var query: String = ""
+    @State private var showCreate = false
+
+    var filtered: [Client] {
+        guard !query.isEmpty else { return clients }
+        let q = query.lowercased()
+        return clients.filter {
+            ($0.name).lowercased().contains(q) ||
+            ($0.company ?? "").lowercased().contains(q) ||
+            ($0.email ?? "").lowercased().contains(q)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -11,8 +23,7 @@ struct ClientsView: View {
                 Theme.bgPrimary.ignoresSafeArea()
 
                 if isLoading {
-                    ProgressView()
-                        .tint(Theme.gold)
+                    ProgressView().tint(Theme.gold)
                 } else if let error = error {
                     VStack(spacing: 12) {
                         Image(systemName: "wifi.exclamationmark")
@@ -25,11 +36,9 @@ struct ClientsView: View {
                             .font(.caption)
                             .foregroundStyle(Theme.textSecondary)
                             .multilineTextAlignment(.center)
-                        Button("Reintentar") {
-                            Task { await load() }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(Theme.gold)
+                        Button("Reintentar") { Task { await load() } }
+                            .buttonStyle(.borderedProminent)
+                            .tint(Theme.gold)
                     }
                     .padding()
                 } else if clients.isEmpty {
@@ -42,8 +51,13 @@ struct ClientsView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 12) {
-                            ForEach(clients) { client in
-                                ClientCard(client: client)
+                            ForEach(filtered) { client in
+                                NavigationLink {
+                                    ClientDetailView(client: client, onChange: { Task { await load() } })
+                                } label: {
+                                    ClientCard(client: client)
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
                         .padding(20)
@@ -56,6 +70,24 @@ struct ClientsView: View {
             .toolbarBackground(Theme.bgPrimary, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .searchable(text: $query, prompt: "Buscar cliente, empresa o email")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showCreate = true
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(Theme.gold)
+                    }
+                }
+            }
+            .sheet(isPresented: $showCreate) {
+                ClientEditView(mode: .create, onSaved: {
+                    showCreate = false
+                    Task { await load() }
+                })
+            }
         }
         .task { await load() }
     }
@@ -78,15 +110,14 @@ struct ClientCard: View {
     var statusColor: Color {
         switch client.status {
         case "activo": return Theme.success
-        case "inactivo": return Theme.textTertiary
-        case "prospecto": return Theme.warning
+        case "pausado": return Theme.warning
+        case "baja": return Theme.error
         default: return Theme.textTertiary
         }
     }
 
     var body: some View {
         HStack(spacing: 14) {
-            // Avatar
             Circle()
                 .fill(Theme.gold.opacity(0.2))
                 .frame(width: 52, height: 52)
