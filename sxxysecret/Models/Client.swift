@@ -14,6 +14,20 @@ struct Client: Codable, Identifiable, Hashable {
     let createdAt: Date?
     let updatedAt: Date?
 
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case name
+        case company
+        case email
+        case phone
+        case status
+        case industry
+        case website
+        case notes
+        case createdAt
+        case updatedAt
+    }
+
     var initials: String {
         let parts = (company ?? name).split(separator: " ")
         let first = parts.first?.first.map(String.init) ?? ""
@@ -40,6 +54,20 @@ struct ProjectTask: Codable, Identifiable, Hashable {
     let createdAt: Date?
     let updatedAt: Date?
 
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case title
+        case description
+        case status
+        case priority
+        case dueDate
+        case project
+        case owner
+        case comments
+        case createdAt
+        case updatedAt
+    }
+
     var statusColor: String {
         switch status {
         case "hecho": return "green"
@@ -64,4 +92,11 @@ struct TaskComment: Codable, Identifiable, Hashable {
     let text: String
     let author: UserRef
     let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case text
+        case author
+        case createdAt
+    }
 }

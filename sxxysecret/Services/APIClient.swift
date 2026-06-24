@@ -25,6 +25,18 @@ actor APIClient {
     private let baseURL = "https://sxxysecret.com/api"
     private let session: URLSession
 
+    static let iso8601Strict: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
+    static let iso8601Fractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
     init() {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 20
@@ -79,7 +91,13 @@ actor APIClient {
 
             do {
                 let decoder = JSONDecoder()
-                decoder.dateDecodingStrategy = .iso8601
+                decoder.dateDecodingStrategy = .custom { dec in
+                    let container = try dec.singleValueContainer()
+                    let raw = try container.decode(String.self)
+                    if let d = APIClient.iso8601Strict.date(from: raw) { return d }
+                    if let d = APIClient.iso8601Fractional.date(from: raw) { return d }
+                    throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid date: \(raw)")
+                }
                 return try decoder.decode(T.self, from: data)
             } catch {
                 throw APIError.decoding(error)

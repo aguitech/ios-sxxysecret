@@ -1,11 +1,19 @@
 import Foundation
 
 // MARK: - Shared refs (used across models)
+// Backend uses MongoDB `_id`. All refs map that to `id`.
 struct UserRef: Codable, Hashable {
     let id: String
     let name: String
     let email: String?
     let role: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case name
+        case email
+        case role
+    }
 }
 
 struct ClientRef: Codable, Hashable {
@@ -14,6 +22,14 @@ struct ClientRef: Codable, Hashable {
     let company: String?
     let email: String?
     let status: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case name
+        case company
+        case email
+        case status
+    }
 }
 
 struct ProjectMember: Codable, Hashable {
@@ -37,6 +53,22 @@ struct Project: Codable, Identifiable, Hashable {
     let members: [ProjectMember]?
     let createdAt: Date?
     let updatedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case title
+        case status
+        case progress
+        case description
+        case budget
+        case startDate
+        case endDate
+        case owner
+        case client
+        case members
+        case createdAt
+        case updatedAt
+    }
 
     var statusColor: String {
         switch status {
@@ -113,4 +145,13 @@ struct Comment: Codable, Identifiable {
     let createdAt: Date
     let taskId: String
     let taskTitle: String
+
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case text
+        case author
+        case createdAt
+        case taskId
+        case taskTitle
+    }
 }
