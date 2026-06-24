@@ -49,6 +49,25 @@ struct TaskAttachment: Codable, Hashable, Identifiable {
     let size: Int?
 }
 
+/// Chat attachment — same shape as TaskAttachment but also carries `kind`
+/// (image / video / document) from the backend.
+struct ChatAttachment: Codable, Hashable, Identifiable {
+    var id: String { url + filename }
+    let kind: String?
+    let url: String
+    let filename: String
+    let mimetype: String?
+    let size: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case kind
+        case url
+        case filename
+        case mimetype
+        case size
+    }
+}
+
 // MARK: - Task
 struct ProjectTask: Codable, Identifiable, Hashable {
     let id: String
@@ -144,16 +163,18 @@ struct Conversation: Codable, Identifiable, Hashable {
 struct ChatMessage: Codable, Identifiable, Hashable {
     let id: String
     let conversationId: String?
+    let conversation: String?
     let sender: String?         // user id, or
     let senderUser: UserRef?    // populated sender object
     let text: String
-    let attachments: [TaskAttachment]?
+    let attachments: [ChatAttachment]?
     let readBy: [String]?
     let createdAt: Date
 
     enum CodingKeys: String, CodingKey {
         case id = "_id"
         case conversationId
+        case conversation
         case sender
         case senderUser
         case text
@@ -161,6 +182,13 @@ struct ChatMessage: Codable, Identifiable, Hashable {
         case readBy
         case createdAt
     }
+}
+
+/// Paginated message response — backend returns { messages, hasMore, nextCursor }
+struct MessagePage: Codable {
+    let messages: [ChatMessage]
+    let hasMore: Bool
+    let nextCursor: String?
 }
 
 struct SendMessageRequest: Codable {
