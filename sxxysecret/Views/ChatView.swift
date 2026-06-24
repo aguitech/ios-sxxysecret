@@ -358,7 +358,7 @@ struct ChatDetailView: View {
                             }
 
                             ForEach(messages) { msg in
-                                MessageBubble(message: msg, isMe: msg.senderUser?.id == auth.user?.id)
+                                MessageBubble(message: msg, isMe: msg.sender.id == auth.user?.id)
                                     .id(msg.id)
                             }
                         }

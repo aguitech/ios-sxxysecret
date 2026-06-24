@@ -160,27 +160,78 @@ struct Conversation: Codable, Identifiable, Hashable {
     }
 }
 
+/// Chat sender — backend uses the same key `sender` for both shapes:
+/// - listing endpoint: `"sender": "6a31..."` (just the user id)
+/// - detail endpoint: `"sender": { "_id": "6a31...", "name": "...", ... }` (populated UserRef)
+/// This enum handles both with one custom decoder.
+enum ChatSender: Codable, Hashable {
+    case userId(String)
+    case user(UserRef)
+
+    var id: String {
+        switch self {
+        case .userId(let s): return s
+        case .user(let u): return u.id
+        }
+    }
+
+    var user: UserRef? {
+        if case .user(let u) = self { return u }
+        return nil
+    }
+
+    var name: String? {
+        user?.name
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if let s = try? c.decode(String.self) {
+            self = .userId(s)
+            return
+        }
+        if let u = try? c.decode(UserRef.self) {
+            self = .user(u)
+            return
+        }
+        // Fallback: null/missing — treat as empty id
+        self = .userId("")
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer()
+        switch self {
+        case .userId(let s): try c.encode(s)
+        case .user(let u): try c.encode(u)
+        }
+    }
+}
+
 struct ChatMessage: Codable, Identifiable, Hashable {
     let id: String
     let conversationId: String?
     let conversation: String?
-    let sender: String?         // user id, or
-    let senderUser: UserRef?    // populated sender object
+    let sender: ChatSender              // was senderUser (UserRef) — now handles both shapes
     let text: String
     let attachments: [ChatAttachment]?
     let readBy: [String]?
+    let editedAt: Date?
+    let deleted: Bool?
     let createdAt: Date
+    let updatedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id = "_id"
         case conversationId
         case conversation
         case sender
-        case senderUser
         case text
         case attachments
         case readBy
+        case editedAt
+        case deleted
         case createdAt
+        case updatedAt
     }
 }
 
