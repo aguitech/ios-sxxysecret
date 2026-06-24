@@ -63,7 +63,12 @@ struct TasksView: View {
                         ScrollView {
                             LazyVStack(spacing: 10) {
                                 ForEach(filteredTasks) { task in
-                                    TaskRow(task: task)
+                                    NavigationLink {
+                                        TaskDetailView(task: task)
+                                    } label: {
+                                        TaskRow(task: task)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                             }
                             .padding(.horizontal, 20)
@@ -158,14 +163,19 @@ struct TaskRow: View {
                     Text(statusLabel)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(statusColor)
-                    Text("·")
-                        .foregroundStyle(Theme.textTertiary)
+                    Text("·").foregroundStyle(Theme.textTertiary)
                     Text(task.priority.capitalized)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(priorityColor)
+                    if let projectTitle = task.project?.title {
+                        Text("·").foregroundStyle(Theme.textTertiary)
+                        Text(projectTitle)
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.gold)
+                            .lineLimit(1)
+                    }
                     if let owner = task.owner {
-                        Text("·")
-                            .foregroundStyle(Theme.textTertiary)
+                        Text("·").foregroundStyle(Theme.textTertiary)
                         Text(owner.name)
                             .font(.system(size: 11))
                             .foregroundStyle(Theme.textSecondary)
@@ -188,6 +198,197 @@ struct TaskRow: View {
             }
         }
         .padding(14)
+        .background(Theme.bgCard)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+// MARK: - Task Detail
+struct TaskDetailView: View {
+    let task: ProjectTask
+
+    var statusLabel: String {
+        switch task.status {
+        case "hecho": return "Hecha"
+        case "en_curso": return "En curso"
+        case "pendiente": return "Pendiente"
+        default: return task.status
+        }
+    }
+
+    var priorityLabel: String {
+        task.priority.capitalized
+    }
+
+    var statusColor: Color {
+        switch task.status {
+        case "hecho": return Theme.success
+        case "en_curso": return Theme.info
+        case "pendiente": return Theme.warning
+        default: return Theme.textTertiary
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            Theme.bgPrimary.ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(task.title)
+                            .font(.system(size: 24, weight: .black, design: .rounded))
+                            .foregroundStyle(Theme.textPrimary)
+                        HStack(spacing: 8) {
+                            Pill(text: statusLabel, color: statusColor)
+                            Pill(text: priorityLabel, color: Theme.gold)
+                            if let projectTitle = task.project?.title {
+                                Pill(text: projectTitle, color: Theme.info)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+
+                    if let desc = task.description, !desc.isEmpty {
+                        Text(desc)
+                            .font(.system(size: 14))
+                            .foregroundStyle(Theme.textSecondary)
+                            .padding(.horizontal, 20)
+                    }
+
+                    // Meta info
+                    VStack(alignment: .leading, spacing: 10) {
+                        if let owner = task.owner {
+                            MetaRow(icon: "person.fill", label: "Owner", value: owner.name)
+                        }
+                        if let assignee = task.assignee {
+                            MetaRow(icon: "person.crop.circle.badge.checkmark", label: "Asignado", value: assignee.name)
+                        }
+                        if let due = task.dueDate {
+                            MetaRow(icon: "calendar", label: "Vence", value: due.formatted(date: .abbreviated, time: .omitted))
+                        }
+                    }
+                    .padding(.horizontal, 20)
+
+                    // Attachments
+                    let imgs = task.images ?? []
+                    let vids = task.videos ?? []
+                    let docs = task.documents ?? []
+                    if !imgs.isEmpty || !vids.isEmpty || !docs.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Archivos")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundStyle(Theme.textPrimary)
+                                .padding(.horizontal, 20)
+
+                            if !imgs.isEmpty {
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 10) {
+                                        ForEach(imgs) { img in
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                ZStack {
+                                                    RoundedRectangle(cornerRadius: 10)
+                                                        .fill(Theme.bgCard)
+                                                        .frame(width: 110, height: 110)
+                                                    Image(systemName: "photo")
+                                                        .font(.system(size: 28))
+                                                        .foregroundStyle(Theme.textSecondary)
+                                                }
+                                                Text(img.filename)
+                                                    .font(.system(size: 10))
+                                                    .foregroundStyle(Theme.textSecondary)
+                                                    .lineLimit(1)
+                                                    .frame(width: 110, alignment: .leading)
+                                            }
+                                        }
+                                    }
+                                    .padding(.horizontal, 20)
+                                }
+                            }
+                            if !docs.isEmpty {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    ForEach(docs) { d in
+                                        HStack(spacing: 8) {
+                                            Image(systemName: "doc.fill")
+                                                .foregroundStyle(Theme.info)
+                                            Text(d.filename)
+                                                .font(.system(size: 13))
+                                                .foregroundStyle(Theme.textPrimary)
+                                                .lineLimit(1)
+                                            Spacer()
+                                            if let s = d.size {
+                                                Text(formatBytes(s))
+                                                    .font(.system(size: 11))
+                                                    .foregroundStyle(Theme.textTertiary)
+                                            }
+                                        }
+                                        .padding(10)
+                                        .background(Theme.bgCard)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    }
+                                }
+                                .padding(.horizontal, 20)
+                            }
+                        }
+                    }
+
+                    Spacer(minLength: 40)
+                }
+            }
+        }
+        .navigationTitle("Detalle")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(Theme.bgPrimary, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+    }
+
+    private func formatBytes(_ b: Int) -> String {
+        if b < 1024 { return "\(b) B" }
+        if b < 1024 * 1024 { return "\(b / 1024) KB" }
+        return "\(b / (1024*1024)) MB"
+    }
+}
+
+struct Pill: View {
+    let text: String
+    let color: Color
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(color.opacity(0.15))
+            .clipShape(Capsule())
+            .textCase(.uppercase)
+    }
+}
+
+struct MetaRow: View {
+    let icon: String
+    let label: String
+    let value: String
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundStyle(Theme.gold)
+                .frame(width: 28, height: 28)
+                .background(Theme.gold.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Theme.textTertiary)
+                    .textCase(.uppercase)
+                Text(value)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Theme.textPrimary)
+            }
+            Spacer()
+        }
+        .padding(12)
         .background(Theme.bgCard)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }

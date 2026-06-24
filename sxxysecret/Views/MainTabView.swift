@@ -19,10 +19,10 @@ struct MainTabView: View {
                 }
                 .tag(1)
 
-            ClientsView()
+            NavigationStack { ChatListView() }
                 .tabItem {
-                    Image(systemName: "person.2.fill")
-                    Text("Clientes")
+                    Image(systemName: "bubble.left.and.bubble.right.fill")
+                    Text("Chat")
                 }
                 .tag(2)
 

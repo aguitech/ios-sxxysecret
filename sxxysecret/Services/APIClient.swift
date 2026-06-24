@@ -140,4 +140,50 @@ actor APIClient {
     func listTasks() async throws -> [ProjectTask] {
         try await request("GET", "/tasks", type: [ProjectTask].self)
     }
+
+    // MARK: Chat
+    func listConversations() async throws -> [Conversation] {
+        try await request("GET", "/chat/conversations", type: [Conversation].self)
+    }
+
+    func listMessages(conversationId: String) async throws -> [ChatMessage] {
+        try await request("GET", "/chat/conversations/\(conversationId)/messages", type: [ChatMessage].self)
+    }
+
+    func sendMessage(conversationId: String, text: String) async throws -> ChatMessage {
+        try await request(
+            "POST",
+            "/chat/conversations/\(conversationId)/messages",
+            body: ["text": text],
+            type: ChatMessage.self
+        )
+    }
+
+    func openConversation(otherUserId: String) async throws -> Conversation {
+        try await request(
+            "POST",
+            "/chat/conversations",
+            body: ["otherUserId": otherUserId],
+            type: Conversation.self
+        )
+    }
+
+    /// Fire-and-forget POST (no body, no response body expected).
+    func requestNoBody(_ method: String, _ path: String, body: [String: Any]? = nil) async throws {
+        guard let url = URL(string: baseURL + path) else { throw APIError.invalidURL }
+        var req = URLRequest(url: url)
+        req.httpMethod = method
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("iOSApp/1.0", forHTTPHeaderField: "User-Agent")
+        let token = await MainActor.run { AuthService.shared.currentToken() }
+        if let token = token { req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+        if let body = body { req.httpBody = try JSONSerialization.data(withJSONObject: body) }
+        let (_, response) = try await session.data(for: req)
+        guard let http = response as? HTTPURLResponse else { throw APIError.noData }
+        if http.statusCode == 401 { throw APIError.unauthorized }
+        if http.statusCode >= 400 {
+            let msg = "Error \(http.statusCode)"
+            throw APIError.server(http.statusCode, msg)
+        }
+    }
 }

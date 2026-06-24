@@ -40,6 +40,15 @@ struct Client: Codable, Identifiable, Hashable {
     }
 }
 
+// MARK: - Task attachments (images/videos/docs)
+struct TaskAttachment: Codable, Hashable, Identifiable {
+    var id: String { url + filename }
+    let url: String
+    let filename: String
+    let mimetype: String?
+    let size: Int?
+}
+
 // MARK: - Task
 struct ProjectTask: Codable, Identifiable, Hashable {
     let id: String
@@ -48,8 +57,12 @@ struct ProjectTask: Codable, Identifiable, Hashable {
     let status: String          // pendiente, en_curso, hecho
     let priority: String        // baja, media, alta
     let dueDate: Date?
-    let project: String?        // project id
+    let project: ProjectLite?   // can be String id OR populated object
     let owner: UserRef?
+    let assignee: UserRef?
+    let images: [TaskAttachment]?
+    let videos: [TaskAttachment]?
+    let documents: [TaskAttachment]?
     let comments: [TaskComment]?
     let createdAt: Date?
     let updatedAt: Date?
@@ -63,6 +76,10 @@ struct ProjectTask: Codable, Identifiable, Hashable {
         case dueDate
         case project
         case owner
+        case assignee
+        case images
+        case videos
+        case documents
         case comments
         case createdAt
         case updatedAt
@@ -99,4 +116,54 @@ struct TaskComment: Codable, Identifiable, Hashable {
         case author
         case createdAt
     }
+}
+
+// MARK: - Chat
+struct Conversation: Codable, Identifiable, Hashable {
+    let id: String
+    let type: String?           // "direct" | "group"
+    let name: String?
+    let other: UserRef?
+    let participants: [UserRef]?
+    let lastMessageAt: Date?
+    let lastMessage: ChatMessage?
+    let unreadCount: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case type
+        case name
+        case other
+        case participants
+        case lastMessageAt
+        case lastMessage
+        case unreadCount
+    }
+}
+
+struct ChatMessage: Codable, Identifiable, Hashable {
+    let id: String
+    let conversationId: String?
+    let sender: String?         // user id, or
+    let senderUser: UserRef?    // populated sender object
+    let text: String
+    let attachments: [TaskAttachment]?
+    let readBy: [String]?
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case conversationId
+        case sender
+        case senderUser
+        case text
+        case attachments
+        case readBy
+        case createdAt
+    }
+}
+
+struct SendMessageRequest: Codable {
+    let text: String
+    let conversationId: String?
 }

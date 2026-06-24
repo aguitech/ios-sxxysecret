@@ -2,6 +2,8 @@ import Foundation
 
 // MARK: - Shared refs (used across models)
 // Backend uses MongoDB `_id`. All refs map that to `id`.
+// `owner` on a Project can come back as either a String ID or a UserRef
+// object — handle both via a custom decoder.
 struct UserRef: Codable, Hashable {
     let id: String
     let name: String
@@ -32,10 +34,93 @@ struct ClientRef: Codable, Hashable {
     }
 }
 
+/// A flexible "owner" field — backend sometimes returns a string ID,
+/// sometimes a populated user object.
+enum ProjectOwner: Codable, Hashable {
+    case userId(String)
+    case user(UserRef)
+
+    var id: String {
+        switch self {
+        case .userId(let s): return s
+        case .user(let u): return u.id
+        }
+    }
+
+    var name: String? {
+        if case .user(let u) = self { return u.name }
+        return nil
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if let s = try? c.decode(String.self) {
+            self = .userId(s)
+            return
+        }
+        if let u = try? c.decode(UserRef.self) {
+            self = .user(u)
+            return
+        }
+        self = .userId("")
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer()
+        switch self {
+        case .userId(let s): try c.encode(s)
+        case .user(let u): try c.encode(u)
+        }
+    }
+}
+
 struct ProjectMember: Codable, Hashable {
     let user: UserRef
     let role: String
     let addedAt: Date?
+}
+
+/// A project's `project` field on a Task can come back as either a string
+/// ID (light listing) or a populated object with title/status.
+enum ProjectLite: Codable, Hashable {
+    case projectId(String)
+    case populated(_id: String, title: String, status: String?)
+
+    var id: String {
+        switch self {
+        case .projectId(let s): return s
+        case .populated(let pid, _, _): return pid
+        }
+    }
+
+    var title: String? {
+        if case .populated(_, let t, _) = self { return t }
+        return nil
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if let s = try? c.decode(String.self) {
+            self = .projectId(s)
+            return
+        }
+        struct PopulatedShape: Decodable { let _id: String; let title: String; let status: String? }
+        if let p = try? c.decode(PopulatedShape.self) {
+            self = .populated(_id: p._id, title: p.title, status: p.status)
+            return
+        }
+        self = .projectId("")
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer()
+        switch self {
+        case .projectId(let s): try c.encode(s)
+        case .populated(let pid, let t, let st):
+            struct P: Encodable { let _id: String; let title: String; let status: String? }
+            try c.encode(P(_id: pid, title: t, status: st))
+        }
+    }
 }
 
 // MARK: - Project
@@ -48,7 +133,7 @@ struct Project: Codable, Identifiable, Hashable {
     let budget: Double?
     let startDate: Date?
     let endDate: Date?
-    let owner: UserRef?
+    let owner: ProjectOwner?
     let client: ClientRef?
     let members: [ProjectMember]?
     let createdAt: Date?
